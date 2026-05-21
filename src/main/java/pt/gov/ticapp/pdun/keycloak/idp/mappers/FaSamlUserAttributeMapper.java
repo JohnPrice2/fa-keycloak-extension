@@ -13,7 +13,6 @@ import org.keycloak.provider.ProviderConfigProperty;
 import org.keycloak.saml.common.util.StringUtil;
 import pt.gov.ticapp.pdun.keycloak.idp.configuration.PropertyReader;
 import pt.gov.ticapp.pdun.keycloak.idp.data.UsernameObfuscator;
-import pt.gov.ticapp.pdun.keycloak.idp.exception.MissingMandatoryUserDataException;
 import pt.gov.ticapp.pdun.keycloak.idp.mappers.converter.AttributeNameSpecificationConverter;
 import pt.gov.ticapp.pdun.keycloak.idp.mappers.model.AttributeNameSpecification;
 import pt.gov.ticapp.pdun.keycloak.idp.mappers.processor.AttributeNameSpecificationProcessor;
@@ -130,7 +129,6 @@ public class FaSamlUserAttributeMapper extends AttributeToRoleMapper {
               .setClientNote(Constants.USER_ATTRIBUTES_PREFIX + attribute, value);
         }
       });
-      attributeValueInContext.orElseThrow(() -> new MissingMandatoryUserDataException(attribute));
     }
   }
 

@@ -8,6 +8,7 @@ import java.util.Map;
 import javax.xml.datatype.DatatypeConfigurationException;
 import org.keycloak.broker.provider.BrokeredIdentityContext;
 import org.keycloak.broker.saml.SAMLEndpoint;
+import org.keycloak.models.IdentityProviderModel;
 import org.keycloak.dom.saml.v2.assertion.AssertionType;
 import org.keycloak.dom.saml.v2.assertion.AttributeStatementType;
 import org.keycloak.dom.saml.v2.assertion.AttributeStatementType.ASTChoiceType;
@@ -38,7 +39,7 @@ public class FaSamlUserAttributeMapperFunctionEmailTest {
   }
 
   private BrokeredIdentityContext getBrokeredIdentityContext() throws DatatypeConfigurationException {
-    BrokeredIdentityContext brokeredIdentityContext = new BrokeredIdentityContext("BIC_01");
+    BrokeredIdentityContext brokeredIdentityContext = new BrokeredIdentityContext("BIC_01", new IdentityProviderModel());
 
     brokeredIdentityContext.setContextData(getBrokeredIdentityContextContextData());
 

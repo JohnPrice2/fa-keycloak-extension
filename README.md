@@ -427,6 +427,200 @@ Add execution
 }
 ```
 
+# Keycloak Configuration Guide
+
+This section describes all steps required to configure Keycloak with this extension and integrate it with the _Authentication Provider_ (FA).
+
+## Prerequisites
+
+- Keycloak 26.x running with this extension's JAR placed in the `providers/` folder
+- A PKCS12 file with the **private key** and **X.509 certificate** of the _Service Provider_ (SP) registered with AMA, including the **full CA certificate chain** (leaf certificate + intermediate CA + root CA)
+- The **AMA signing certificate** (to validate SAML responses from FA)
+
+> AMA signing certificates are available in the official repository:
+> [https://github.com/amagovpt/doc-AUTENTICACAO](https://github.com/amagovpt/doc-AUTENTICACAO)
+
+### Build and Install the Extension
+
+```shell
+mvn clean package
+cp target/keycloakfaidp-1.5.2.jar <keycloak-home>/providers/keycloakfaidp-1.5.2.jar
+```
+
+Restart Keycloak after copying the JAR.
+
+---
+
+## 1. SP Signing Key
+
+Keycloak must sign SAML _AuthnRequests_ with the SP private key registered with AMA.
+
+In the Keycloak Admin Console, go to **Realm Settings → Keys → Providers → Add provider → java-keystore** and fill in:
+
+| Field | Value |
+|---|---|
+| Name | _(any name, e.g. `sp-signing-key`)_ |
+| Priority | `200` _(must be higher than the default `100` to take precedence)_ |
+| Enabled | `ON` |
+| Active | `ON` |
+| Algorithm | `RS256` |
+| Keystore | _(absolute path to the PKCS12 file)_ |
+| Keystore Type | `PKCS12` |
+| Keystore Password | _(keystore password)_ |
+| Key Alias | _(alias of the key entry inside the keystore)_ |
+| Key Password | _(key password)_ |
+
+> **Important:** The PKCS12 file must contain the **full certificate chain** (leaf certificate + intermediate CA + root CA). If it only contains the leaf certificate, Keycloak rejects the key provider with the error `Certificate error on server. Path does not chain with any of the trust anchors`.
+
+To create the PKCS12 from separate files (private key + certificate + AMA CA chain):
+
+```shell
+# 1. Convert private key from DER to PEM format (if needed)
+openssl pkcs8 -inform DER -in private_key.key -nocrypt -out private_key.pem
+
+# 2. Export SP certificate from an existing JKS (if needed)
+keytool -exportcert -keystore sp.jks -storepass <password> -alias <alias> -rfc -file sp_cert.pem
+
+# 3. Extract CA certificates from the AMA p7b chain file
+openssl pkcs7 -inform DER -in ama_chain.p7b -print_certs -out full_chain.pem
+# Manually split into intermediate_ca.pem and root_ca.pem
+
+# 4. Create the PKCS12 with the full chain
+cat sp_cert.pem intermediate_ca.pem root_ca.pem > fullchain.pem
+openssl pkcs12 -export -inkey private_key.pem -in fullchain.pem -name <alias> -out sp_keystore.p12 -passout pass:<password>
+
+# 5. Verify — Certificate chain length should be 3
+keytool -list -v -keystore sp_keystore.p12 -storepass <password> -storetype PKCS12
+```
+
+### Add AMA Root CA to the Keycloak Truststore
+
+For Keycloak to accept certificates from the AMA chain, the root CA certificate must be imported into the JVM truststore running Keycloak.
+
+```shell
+# Import AMA root CA into the JVM truststore
+keytool -importcert \
+  -alias ama-root-ca \
+  -keystore $JAVA_HOME/lib/security/cacerts \
+  -storepass changeit \
+  -file root_ca.pem \
+  -noprompt
+```
+
+> **Docker/container note:** If Keycloak runs in a container, copy the certificate into the container and import it before starting the service, or mount a custom truststore as a volume and configure it via `JAVA_OPTS`:
+> ```
+> -Djavax.net.ssl.trustStore=/opt/keycloak/truststore.jks -Djavax.net.ssl.trustStorePassword=<password>
+> ```
+
+Restart Keycloak after importing the certificate.
+
+---
+
+## 2. Identity Provider
+
+Go to **Identity Providers → Add provider → FA SAML v1.5.2 IDP**.
+
+### General settings
+
+| Field | Value |
+|---|---|
+| Alias | `fa-saml-idp` |
+| Display name | _(e.g. `Autenticação GOV`)_ |
+
+> The **Redirect URI** field is filled in automatically by Keycloak — this is the **ACS URL** to register with AMA: `https://{keycloak-host}/auth/realms/{realm}/broker/fa-saml-idp/endpoint`
+
+### SAML settings
+
+| Field | Pre-Production | Production |
+|---|---|---|
+| Service provider entity ID | _(SP Entity ID registered with AMA)_ | _(SP Entity ID registered with AMA)_ |
+| Single Sign-On service URL | `https://preprod.autenticacao.gov.pt/fa/Default.aspx` | `https://autenticacao.gov.pt/fa/Default.aspx` |
+| Single logout service URL | `https://preprod.autenticacao.gov.pt/fa/Logout.ashx` | `https://autenticacao.gov.pt/fa/Logout.ashx` |
+| NameID policy format | `Transient` | `Transient` |
+| Principal type | `Attribute` | `Attribute` |
+| Principal attribute | `calculatedPrincipalAssertion` | `calculatedPrincipalAssertion` |
+| HTTP-POST binding response | `ON` | `ON` |
+| HTTP-POST binding for AuthnRequest | `ON` | `ON` |
+| HTTP-POST binding logout | `ON` | `ON` |
+| Want AuthnRequests signed | `ON` | `ON` |
+| Signature algorithm | `RSA_SHA256` | `RSA_SHA256` |
+| SAML signature key name | `KEY_ID` | `KEY_ID` |
+| Validate Signatures | `ON` | `ON` |
+| Validating X509 certificates | _(AMA pre-production signing certificate)_ | _(AMA production signing certificate)_ |
+| Force authentication | `ON` | `ON` |
+
+### Advanced settings
+
+| Field | Value |
+|---|---|
+| First login flow override | _(select the authentication flow configured for FA)_ |
+| Sync mode | `Import` |
+
+### FA SAML Extension Configuration
+
+| Field | Value |
+|---|---|
+| FA AA Level | `3` _(adjust as needed: 1=CC, 2=CMD, 3=CMD via email/Twitter, 4=username/password)_ |
+| Requested Attributes | See JSON below |
+
+```json
+[
+  {"name": "http://interop.gov.pt/MDC/Cidadao/NIC"},
+  {"name": "http://interop.gov.pt/MDC/Cidadao/NomeCompleto"},
+  {"name": "http://interop.gov.pt/MDC/Cidadao/NomeProprio"},
+  {"name": "http://interop.gov.pt/MDC/Cidadao/NomeApelido"},
+  {"name": "http://interop.gov.pt/MDC/Cidadao/NIF"},
+  {"name": "http://interop.gov.pt/MDC/Cidadao/CorreioElectronico"}
+]
+```
+
+---
+
+## 3. Identity Provider Mappers
+
+Go to **Identity Providers → fa-saml-idp → Mappers** and create the following four mappers. All use _Mapper Type_: **Attribute Importer**.
+
+| Mapper Name | Attribute Name | User Attribute Name |
+|---|---|---|
+| `firstName` | `{"name": "http://interop.gov.pt/MDC/Cidadao/NomeProprio", "type": "DIRECT"}` | `firstName` |
+| `lastName` | `{"name": "http://interop.gov.pt/MDC/Cidadao/NomeApelido", "type": "DIRECT"}` | `lastName` |
+| `username` | `{"name": "calculatedPrincipalAssertion", "type": "DIRECT"}` | `username` |
+| `email` | `{"name": "http://interop.gov.pt/MDC/Cidadao/CorreioElectronico", "type": "DIRECT"}` | `email` |
+
+> **Note:** `calculatedPrincipalAssertion` is a synthetic attribute added by the extension from the NIC value. It is an obfuscated identifier used as the Keycloak username, in compliance with GDPR.
+
+---
+
+## 4. User Profile
+
+To prevent Keycloak from prompting the user for an email address when FA does not return the `CorreioElectronico` attribute (e.g. in pre-production test accounts), make email optional in the realm's user profile.
+
+Go to **Realm Settings → User Profile → email** and set **Required** to `OFF`.
+
+> In production, FA returns `CorreioElectronico` and the email mapper populates it automatically, so the user will never see that form.
+
+---
+
+## 5. User Federation
+
+Add a _User Federation_ provider at **User Federation → Add provider → fa-user-storage**.
+
+This ensures FA user data is not permanently stored in the Keycloak database.
+
+---
+
+## 6. Pre-Production vs Production Differences
+
+| | Pre-Production | Production |
+|---|---|---|
+| FA SSO URL | `preprod.autenticacao.gov.pt/fa/Default.aspx` | `autenticacao.gov.pt/fa/Default.aspx` |
+| AMA signing certificate | Pre-production certificate (issued by AMA preprod CA) | Production certificate |
+| ACS URL registration | AMA preprod may accept the ACS URL sent in the SAML request itself, even without prior registration | Must be registered with AMA in advance |
+| SP Entity ID | As registered with AMA pre-production | As registered with AMA production |
+| Email attribute | May be absent in test accounts | Present when the user has it on the Citizen Card |
+
+---
+
 # Debug Extension
 
 ## On IntelliJ

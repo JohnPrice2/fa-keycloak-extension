@@ -2,12 +2,14 @@ package pt.gov.ticapp.pdun.keycloak.idp.mappers.processor;
 
 import com.fasterxml.jackson.core.JsonProcessingException;
 import com.fasterxml.jackson.core.type.TypeReference;
+import com.fasterxml.jackson.dataformat.xml.XmlFactory;
 import com.fasterxml.jackson.dataformat.xml.XmlMapper;
 import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
+import javax.xml.stream.XMLInputFactory;
 import org.jboss.logging.Logger;
 
 public class XmlSpecificationTypeProcessor {
@@ -23,7 +25,11 @@ public class XmlSpecificationTypeProcessor {
     String processedValue = "";
 
     try {
-      Object xmlRawValue = new XmlMapper().readValue("<Root>" + xmlValue + "</Root>",
+      XMLInputFactory xmlInputFactory = XMLInputFactory.newInstance();
+      xmlInputFactory.setProperty(XMLInputFactory.IS_SUPPORTING_EXTERNAL_ENTITIES, Boolean.FALSE);
+      xmlInputFactory.setProperty(XMLInputFactory.SUPPORT_DTD, Boolean.FALSE);
+      Object xmlRawValue = new XmlMapper(new XmlFactory(xmlInputFactory)).readValue(
+          "<Root>" + xmlValue + "</Root>",
           new TypeReference<HashMap<String, Object>>() {
           });
       List<String> selectorKeys = getSelectorKeys(selector);

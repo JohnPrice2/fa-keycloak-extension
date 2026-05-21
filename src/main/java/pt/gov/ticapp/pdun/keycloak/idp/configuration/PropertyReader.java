@@ -6,7 +6,6 @@ import org.apache.commons.configuration2.PropertiesConfiguration;
 import org.apache.commons.configuration2.builder.FileBasedConfigurationBuilder;
 import org.apache.commons.configuration2.builder.fluent.Parameters;
 import org.apache.commons.configuration2.ex.ConfigurationException;
-import org.apache.commons.lang3.StringUtils;
 
 public class PropertyReader {
 
@@ -149,27 +148,5 @@ public class PropertyReader {
 
     return configuration.getString(
         "fa.samlidentityprovider.extension.fa.calculated.assertion.principal.from");
-  }
-
-  public String getRedisHost() {
-    final String faUserStorageRedisUrl = System.getProperty("FA_USER_STORAGE_REDIS_URL");
-
-    if (StringUtils.isBlank(faUserStorageRedisUrl)) {
-      throw new RuntimeException(
-          "FA User Storage Redis URL is not defined in System property 'FA_USER_STORAGE_REDIS_URL'");
-    }
-
-    return faUserStorageRedisUrl;
-  }
-
-  public int getRedisPort() {
-    final String faUserStorageRedisPort = System.getProperty("FA_USER_STORAGE_REDIS_PORT");
-
-    if (StringUtils.isBlank(faUserStorageRedisPort)) {
-      throw new RuntimeException(
-          "FA User Storage Redis URL is not defined in System property 'FA_USER_STORAGE_REDIS_PORT'");
-    }
-
-    return Integer.parseInt(faUserStorageRedisPort);
   }
 }

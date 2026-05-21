@@ -1,7 +1,6 @@
 package pt.gov.ticapp.pdun.keycloak.idp;
 
 import static pt.gov.ticapp.pdun.keycloak.idp.mappers.FaSamlUserAttributeMapper.CONTEXT_CLIENT_NOTES_KEY_USER_USER_ATTRIBUTE_USERNAME_KEY;
-import static pt.gov.ticapp.pdun.keycloak.idp.mappers.FaSamlUserAttributeMapper.USER_ATTRIBUTE_EMAIL_KEY;
 import static pt.gov.ticapp.pdun.keycloak.idp.mappers.FaSamlUserAttributeMapper.USER_ATTRIBUTE_FIRST_NAME_KEY;
 import static pt.gov.ticapp.pdun.keycloak.idp.mappers.FaSamlUserAttributeMapper.USER_ATTRIBUTE_LAST_NAME_KEY;
 import static pt.gov.ticapp.pdun.keycloak.idp.mappers.FaSamlUserAttributeMapper.USER_ATTRIBUTE_USERNAME_KEY;
@@ -14,10 +13,9 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.stream.Collectors;
-import javax.ws.rs.core.Response;
-import javax.ws.rs.core.Response.Status;
-import org.keycloak.broker.provider.IdentityProvider;
-import org.keycloak.broker.provider.IdentityProvider.AuthenticationCallback;
+import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.core.Response.Status;
+import org.keycloak.broker.provider.UserAuthenticationIdentityProvider;
 import org.keycloak.dom.saml.v2.assertion.AssertionType;
 import org.keycloak.dom.saml.v2.assertion.AttributeStatementType;
 import org.keycloak.dom.saml.v2.assertion.AttributeStatementType.ASTChoiceType;
@@ -27,6 +25,8 @@ import org.keycloak.dom.saml.v2.protocol.ResponseType.RTChoiceType;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.saml.common.constants.JBossSAMLURIConstants;
 import org.keycloak.saml.processing.core.saml.v2.common.SAMLDocumentHolder;
+import org.keycloak.services.ErrorPage;
+import org.keycloak.sessions.AuthenticationSessionModel;
 import pt.gov.ticapp.pdun.keycloak.idp.FaSamlEndpoint.FaSamlPostBinding;
 import pt.gov.ticapp.pdun.keycloak.idp.configuration.PropertyReader;
 import pt.gov.ticapp.pdun.keycloak.idp.data.UsernameObfuscator;
@@ -36,10 +36,10 @@ import pt.gov.ticapp.pdun.keycloak.idp.mappers.FaSamlUserAttributeMapper;
 public class FaSamlPostBindingWorker {
 
   private final KeycloakSession session;
-  private final IdentityProvider.AuthenticationCallback callback;
+  private final UserAuthenticationIdentityProvider.AuthenticationCallback callback;
   private final FaSamlPostBinding faSamlPostBinding;
 
-  public FaSamlPostBindingWorker(KeycloakSession session, AuthenticationCallback callback,
+  public FaSamlPostBindingWorker(KeycloakSession session, UserAuthenticationIdentityProvider.AuthenticationCallback callback,
       FaSamlPostBinding faSamlPostBinding) {
 
     this.session = session;
@@ -53,8 +53,6 @@ public class FaSamlPostBindingWorker {
     if (responseType != null && responseType.getStatus() != null
         && PropertyReader.INSTANCE.getFaSamlIdentityProviderExtensionFaCancelledAuthenticationStatusMessage()
         .equals(responseType.getStatus().getStatusMessage())) {
-
-      session.getContext().setAuthenticationSession(callback.getAndVerifyAuthenticationSession(relayState));
 
       return createResponse(
           PropertyReader.INSTANCE.getFaSamlIdentityProviderExtensionFaEndpointLoginResponseResultStatusBackWasPressed());
@@ -80,9 +78,13 @@ public class FaSamlPostBindingWorker {
 
   private Response createResponse(int mainCause) {
 
+    AuthenticationSessionModel authSession = session.getContext().getAuthenticationSession();
+    if (authSession == null) {
+      return ErrorPage.error(session, null, Response.Status.INTERNAL_SERVER_ERROR, "unexpectedErrorMessage");
+    }
     try {
       return Response.status(Status.SEE_OTHER)
-          .location(new URI(session.getContext().getAuthenticationSession().getRedirectUri() + "?"
+          .location(new URI(authSession.getRedirectUri() + "?"
               + PropertyReader.INSTANCE.getFaSamlIdentityProviderExtensionFaEndpointLoginResponseResultStatusQueryStringParameter()
               + "=" + mainCause))
           .build();
@@ -144,11 +146,14 @@ public class FaSamlPostBindingWorker {
 
   private void validateMandatoryAttributesExistence() {
 
-    final Map<String, String> clientNotes = session.getContext().getAuthenticationSession().getClientNotes();
+    AuthenticationSessionModel authSession = session.getContext().getAuthenticationSession();
+    if (authSession == null) {
+      return;
+    }
 
-    if (!clientNotes.containsKey(FaSamlUserAttributeMapper.CONTEXT_CLIENT_NOTES_KEY_USER_ATTRIBUTE_EMAIL_KEY)) {
-      throw new MissingMandatoryUserDataException(USER_ATTRIBUTE_EMAIL_KEY);
-    } else if (!clientNotes.containsKey(
+    final Map<String, String> clientNotes = authSession.getClientNotes();
+
+    if (!clientNotes.containsKey(
         FaSamlUserAttributeMapper.CONTEXT_CLIENT_NOTES_KEY_USER_USER_ATTRIBUTE_FIRST_NAME_KEY)) {
       throw new MissingMandatoryUserDataException(USER_ATTRIBUTE_FIRST_NAME_KEY);
     } else if (!clientNotes.containsKey(

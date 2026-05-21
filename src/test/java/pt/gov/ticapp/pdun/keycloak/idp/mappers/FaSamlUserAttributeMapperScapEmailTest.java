@@ -8,6 +8,7 @@ import java.util.Map;
 import javax.xml.datatype.DatatypeConfigurationException;
 import org.keycloak.broker.provider.BrokeredIdentityContext;
 import org.keycloak.broker.saml.SAMLEndpoint;
+import org.keycloak.models.IdentityProviderModel;
 import org.keycloak.dom.saml.v2.assertion.AssertionType;
 import org.keycloak.dom.saml.v2.assertion.AttributeStatementType;
 import org.keycloak.dom.saml.v2.assertion.AttributeStatementType.ASTChoiceType;
@@ -38,7 +39,7 @@ public class FaSamlUserAttributeMapperScapEmailTest {
   }
 
   private BrokeredIdentityContext getBrokeredIdentityContext() throws DatatypeConfigurationException {
-    BrokeredIdentityContext brokeredIdentityContext = new BrokeredIdentityContext("BIC_01");
+    BrokeredIdentityContext brokeredIdentityContext = new BrokeredIdentityContext("BIC_01", new IdentityProviderModel());
 
     brokeredIdentityContext.setContextData(getBrokeredIdentityContextContextData());
 
@@ -99,7 +100,36 @@ public class FaSamlUserAttributeMapperScapEmailTest {
 
     attributeType.setNameFormat("urn:oasis:names:tc:SAML:2.0:attrname-format:uri");
     attributeType.addAttributeValue(
-        "<ScapAttributes xmlns=\"http://www.scap.autenticacao.gov.pt/FAScapAttributes\"><AttributeSupplier><Name>Empresa Teste Q 0402 1610</Name><Nipc>509726607</Nipc><Attributes><Attribute><Name>Cargo 4</Name><IdentifiableName>Cargo_4</IdentifiableName><SubAttributes><SubAttribute><Description>Nome da entidade</Description><Value>Empresa Teste Q 0402 1610</Value></SubAttribute><SubAttribute><Description>NIPC</Description><Value>509726607</Value></SubAttribute><SubAttribute><Description>E-mail do funcionário</Description><Value>pedro.n.inacio@ama.pt</Value></SubAttribute><SubAttribute><Description>Atribuído por</Description><Value>Administrador</Value></SubAttribute></SubAttributes></Attribute></Attributes></AttributeSupplier></ScapAttributes>");
+        "<ScapAttributes xmlns=\"http://www.scap.autenticacao.gov.pt/FAScapAttributes\">" +
+                "<AttributeSupplier>" +
+                  "<Name>Empresa Teste Q 0402 1610</Name>" +
+                  "<Nipc>509726607</Nipc>" +
+                  "<Attributes>" +
+                    "<Attribute>" +
+                        "<Name>Cargo 4</Name>" +
+                        "<IdentifiableName>Cargo_4</IdentifiableName>" +
+                        "<SubAttributes>" +
+                            "<SubAttribute>" +
+                                "<Description>Nome da entidade</Description>" +
+                                "<Value>Empresa Teste Q 0402 1610</Value>" +
+                            "</SubAttribute>" +
+                            "<SubAttribute>" +
+                                "<Description>NIPC</Description>" +
+                                "<Value>509726607</Value>" +
+                                "</SubAttribute>" +
+                            "<SubAttribute>" +
+                                "<Description>E-mail do funcionário</Description>" +
+                                "<Value>pedro.n.inacio@ama.pt</Value>" +
+                            "</SubAttribute>" +
+                            "<SubAttribute>" +
+                                "<Description>Atribuído por</Description>" +
+                                "<Value>Administrador</Value>" +
+                            "</SubAttribute>" +
+                        "</SubAttributes>" +
+                    "</Attribute>" +
+                "</Attributes>" +
+            "</AttributeSupplier>" +
+        "</ScapAttributes>");
 
     return new ASTChoiceType(attributeType);
   }

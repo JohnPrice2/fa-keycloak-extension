@@ -6,7 +6,8 @@ import java.util.Map;
 import java.util.stream.Stream;
 import org.keycloak.common.util.MultivaluedHashMap;
 import org.keycloak.component.ComponentModel;
-import org.keycloak.credential.LegacyUserCredentialManager;
+import org.keycloak.credential.CredentialInput;
+import org.keycloak.credential.CredentialModel;
 import org.keycloak.models.ClientModel;
 import org.keycloak.models.GroupModel;
 import org.keycloak.models.KeycloakSession;
@@ -16,7 +17,6 @@ import org.keycloak.models.SubjectCredentialManager;
 import org.keycloak.models.UserModel;
 import org.keycloak.models.UserModelDefaultMethods;
 import org.keycloak.models.utils.RoleUtils;
-import org.keycloak.storage.UserStorageUtil;
 
 public class FaUserModel extends UserModelDefaultMethods {
 
@@ -125,19 +125,15 @@ public class FaUserModel extends UserModelDefaultMethods {
   @Override
   public Stream<String> getRequiredActionsStream() {
 
-    return UserStorageUtil.userFederatedStorage(session).getRequiredActionsStream(realm, faUser.getStorageId().getId());
+    return Stream.empty();
   }
 
   @Override
   public void addRequiredAction(String action) {
-
-    UserStorageUtil.userFederatedStorage(session).addRequiredAction(realm, faUser.getStorageId().getId(), action);
   }
 
   @Override
   public void removeRequiredAction(String action) {
-
-    UserStorageUtil.userFederatedStorage(session).addRequiredAction(realm, faUser.getStorageId().getId(), action);
   }
 
   @Override
@@ -155,19 +151,15 @@ public class FaUserModel extends UserModelDefaultMethods {
   @Override
   public Stream<GroupModel> getGroupsStream() {
 
-    return Collections.EMPTY_LIST.stream();
+    return Collections.<GroupModel>emptyList().stream();
   }
 
   @Override
   public void joinGroup(GroupModel group) {
-
-    UserStorageUtil.userFederatedStorage(session).joinGroup(realm, this.getId(), group);
   }
 
   @Override
   public void leaveGroup(GroupModel group) {
-
-    UserStorageUtil.userFederatedStorage(session).leaveGroup(realm, this.getId(), group);
   }
 
   @Override
@@ -199,7 +191,89 @@ public class FaUserModel extends UserModelDefaultMethods {
   @Override
   public SubjectCredentialManager credentialManager() {
 
-    return new LegacyUserCredentialManager(session, realm, this);
+    return new SubjectCredentialManager() {
+      @Override
+      public boolean isValid(List<CredentialInput> inputs) {
+        return false;
+      }
+
+      @Override
+      public boolean updateCredential(CredentialInput input) {
+        return false;
+      }
+
+      @Override
+      public void updateStoredCredential(CredentialModel cred) {
+      }
+
+      @Override
+      public CredentialModel createStoredCredential(CredentialModel cred) {
+        throw new UnsupportedOperationException("FA users do not support local credential storage");
+      }
+
+      @Override
+      public boolean removeStoredCredentialById(String id) {
+        return false;
+      }
+
+      @Override
+      public CredentialModel getStoredCredentialById(String id) {
+        return null;
+      }
+
+      @Override
+      public Stream<CredentialModel> getStoredCredentialsStream() {
+        return Stream.empty();
+      }
+
+      @Override
+      public Stream<CredentialModel> getStoredCredentialsByTypeStream(String type) {
+        return Stream.empty();
+      }
+
+      @Override
+      public CredentialModel getStoredCredentialByNameAndType(String name, String type) {
+        return null;
+      }
+
+      @Override
+      public boolean moveStoredCredentialTo(String id, String newPreviousCredentialId) {
+        return false;
+      }
+
+      @Override
+      public void updateCredentialLabel(String credentialId, String userLabel) {
+      }
+
+      @Override
+      public void disableCredentialType(String credentialType) {
+      }
+
+      @Override
+      public Stream<String> getDisableableCredentialTypesStream() {
+        return Stream.empty();
+      }
+
+      @Override
+      public boolean isConfiguredFor(String credentialType) {
+        return false;
+      }
+
+      @Override
+      public boolean isConfiguredLocally(String credentialType) {
+        return false;
+      }
+
+      @Override
+      public Stream<String> getConfiguredUserStorageCredentialTypesStream() {
+        return Stream.empty();
+      }
+
+      @Override
+      public CredentialModel createCredentialThroughProvider(CredentialModel cred) {
+        throw new UnsupportedOperationException("FA users do not support local credential storage");
+      }
+    };
   }
 
   @Override
@@ -226,8 +300,7 @@ public class FaUserModel extends UserModelDefaultMethods {
   @Override
   public Stream<RoleModel> getRealmRoleMappingsStream() {
 
-    return Stream.concat(UserStorageUtil.userFederatedStorage(session).getRoleMappingsStream(realm, this.getId()),
-        realm.getDefaultRole().getCompositesStream()).filter(RoleUtils::isRealmRole);
+    return realm.getDefaultRole().getCompositesStream().filter(RoleUtils::isRealmRole);
   }
 
   @Override
@@ -245,23 +318,16 @@ public class FaUserModel extends UserModelDefaultMethods {
 
   @Override
   public void grantRole(RoleModel role) {
-
-    UserStorageUtil.userFederatedStorage(session).grantRole(realm, this.getId(), role);
   }
-
 
   @Override
   public Stream<RoleModel> getRoleMappingsStream() {
 
-    return Stream.concat(
-        UserStorageUtil.userFederatedStorage(session).getRoleMappingsStream(realm, this.getId()),
-        realm.getDefaultRole().getCompositesStream());
+    return realm.getDefaultRole().getCompositesStream();
   }
 
   @Override
   public void deleteRoleMapping(RoleModel role) {
-
-    UserStorageUtil.userFederatedStorage(session).deleteRoleMapping(realm, this.getId(), role);
   }
 
   public FaUser getFaUser() {

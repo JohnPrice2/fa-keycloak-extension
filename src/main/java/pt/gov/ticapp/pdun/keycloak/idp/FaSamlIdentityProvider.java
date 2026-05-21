@@ -4,17 +4,20 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Iterator;
 import java.util.List;
-import javax.ws.rs.core.Response;
-import javax.ws.rs.core.UriBuilder;
-import javax.ws.rs.core.UriInfo;
+import jakarta.ws.rs.core.Response;
+import jakarta.ws.rs.core.UriBuilder;
+import jakarta.ws.rs.core.UriInfo;
 import org.apache.commons.lang3.StringUtils;
 import org.keycloak.broker.provider.AuthenticationRequest;
 import org.keycloak.broker.provider.IdentityBrokerException;
+import org.keycloak.broker.provider.UserAuthenticationIdentityProvider;
 import org.keycloak.broker.saml.SAMLIdentityProvider;
 import org.keycloak.broker.saml.SAMLIdentityProviderConfig;
 import org.keycloak.dom.saml.v2.protocol.AuthnRequestType;
 import org.keycloak.events.EventBuilder;
-import org.keycloak.models.KeyManager;
+import org.keycloak.crypto.Algorithm;
+import org.keycloak.crypto.KeyUse;
+import org.keycloak.crypto.KeyWrapper;
 import org.keycloak.models.KeycloakSession;
 import org.keycloak.models.RealmModel;
 import org.keycloak.protocol.oidc.OIDCLoginProtocol;
@@ -100,11 +103,12 @@ public class FaSamlIdentityProvider extends SAMLIdentityProvider {
       JaxrsSAML2BindingBuilder jaxrsSAML2BindingBuilder, boolean postBinding) {
 
     if (getConfig().isWantAuthnRequestsSigned()) {
-      KeyManager.ActiveRsaKey keys = session.keys().getActiveRsaKey(realm);
+      KeyWrapper keys = session.keys().getActiveKey(realm, KeyUse.SIG, Algorithm.RS256);
       String keyName = getConfig().getXmlSigKeyInfoKeyNameTransformer()
           .getKeyName(keys.getKid(), keys.getCertificate());
 
-      jaxrsSAML2BindingBuilder.signWith(keyName, keys.getPrivateKey(), keys.getPublicKey(), keys.getCertificate())
+      jaxrsSAML2BindingBuilder.signWith(keyName, (java.security.PrivateKey) keys.getPrivateKey(),
+              (java.security.PublicKey) keys.getPublicKey(), keys.getCertificate())
           .signatureAlgorithm(getSignatureAlgorithm()).signDocument();
 
       if (!postBinding && getConfig().isAddExtensionsElementWithKeyInfo()) {
@@ -208,8 +212,8 @@ public class FaSamlIdentityProvider extends SAMLIdentityProvider {
   }
 
   @Override
-  public Object callback(RealmModel realm, AuthenticationCallback callback, EventBuilder event) {
+  public Object callback(RealmModel realm, UserAuthenticationIdentityProvider.AuthenticationCallback callback, EventBuilder event) {
 
-    return new FaSamlEndpoint(realm, this, getConfig(), callback, destinationValidator);
+    return new FaSamlEndpoint(session, this, getConfig(), callback, destinationValidator);
   }
 }

@@ -17,6 +17,11 @@ public class AttributeNameSpecificationConverter {
 
     try {
       attributeNameSpecification = new ObjectMapper().readValue(attributeName, AttributeNameSpecification.class);
+
+      if (attributeNameSpecification.getName() == null || attributeNameSpecification.getAttributeNameSpecificationType() == null) {
+        LOGGER.warn("Attribute Name Specification '" + attributeName + "' is missing mandatory fields 'name' or 'type'.");
+        return null;
+      }
     } catch (JsonProcessingException e) {
       LOGGER.warn(
           "Could not map attribute name '" + attributeName + "'. It is not a valid Attribute Name Specification.");
